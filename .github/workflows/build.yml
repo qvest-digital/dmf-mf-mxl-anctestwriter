@@ -1,0 +1,71 @@
+name: Build & Push image
+
+# Builds the media function's image and pushes it to GHCR. The catalog pins the
+# tag a claim provisions (functions.mxl-anc-testsrc image.tag in dmf-catalog), so
+# a release here is not live anywhere until that pin moves -- deliberately, since
+# a booking should not change underneath a production that already reconciled.
+#
+# The framing round-trip runs inside the image build via ctest, so a broken
+# RFC 8331 layout fails the build rather than shipping.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/qvest-digital/dmf-mf-mxl-anc-testsrc
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Derive image tags
+        id: tags
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # sha tag always; version tag on a release. github.event.release.tag_name
+          # is reliable on `release` events where GITHUB_REF is not. Image tags omit
+          # the leading v, by Docker convention.
+          echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$RELEASE_TAG" ]]; then
+            echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # Pull requests build but do not publish: the image is only useful once
+          # a version exists to pin.
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tags.outputs.sha }}
+            ${{ steps.tags.outputs.version && format('{0}:{1}', env.IMAGE, steps.tags.outputs.version) || '' }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.IMAGE) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
