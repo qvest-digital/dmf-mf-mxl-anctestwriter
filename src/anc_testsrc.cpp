@@ -55,7 +55,8 @@
 // (there is no route from a data flow to a browser).
 //
 // Env: MXL_DOMAIN (/run/mxl/domain), MXL_FLOW_ID, MXL_GRAIN_RATE_NUM (30000),
-// MXL_GRAIN_RATE_DEN (1001), MXL_ANC_LINE (9), MXL_LABEL, MXL_DESCRIPTION.
+// MXL_GRAIN_RATE_DEN (1001), MXL_ANC_LINE (9), MXL_LABEL, MXL_DESCRIPTION,
+// MXL_GROUP_HINT.
 
 #include <algorithm>
 #include <atomic>
@@ -104,7 +105,8 @@ namespace
     // document as a string, so the deployment stays a single container with no
     // extra volume.
     std::string flow_def(std::string const& id, int rateNum, int rateDen,
-        std::string const& label, std::string const& description)
+        std::string const& label, std::string const& description,
+        std::string const& groupHint)
     {
         std::ostringstream os;
         os << "{\n"
@@ -115,7 +117,7 @@ namespace
            << R"(  "description": ")" << description << "\",\n"
            << R"(  "grain_rate": { "numerator": )" << rateNum
            << R"(, "denominator": )" << rateDen << " },\n"
-           << R"(  "tags": { "urn:x-nmos:tag:grouphint/v1.0": ["ANC Test Source:Ancillary Data"] })" << '\n'
+           << R"(  "tags": { "urn:x-nmos:tag:grouphint/v1.0": [")" << groupHint << R"("] })" << '\n'
            << "}\n";
         return os.str();
     }
@@ -140,6 +142,9 @@ int main()
     auto const label = env_or("MXL_LABEL", "MXL ANC Test Timecode");
     auto const description = env_or("MXL_DESCRIPTION",
         "SMPTE ST 12-2 framed ancillary timecode, BCD payload");
+    // NMOS group hint. A booking sets this so the flow groups with the rest of
+    // the media function's outputs in a registry; on its own it is descriptive.
+    auto const groupHint = env_or("MXL_GROUP_HINT", "ANC Test Source:Ancillary Data");
 
     auto* instance = ::mxlCreateInstance(domain.c_str(), "");
     if (instance == nullptr)
@@ -148,7 +153,7 @@ int main()
         return 1;
     }
 
-    auto const def = flow_def(flowId, rateNum, rateDen, label, description);
+    auto const def = flow_def(flowId, rateNum, rateDen, label, description, groupHint);
     ::mxlFlowWriter writer = nullptr;
     ::mxlFlowConfigInfo config{};
     bool created = false;
