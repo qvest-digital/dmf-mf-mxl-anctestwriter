@@ -8,17 +8,31 @@ name: release-please
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  # Manual escape hatch: re-run the release-please pass without waiting for a
+  # new push to main, for when a release PR falls out of sync.
+  workflow_dispatch: {}
 
 permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: release-please
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # RELEASE_PLEASE_TOKEN is a PAT (or GitHub App token) with contents and
+      # pull-requests write. The default GITHUB_TOKEN cannot be used here for
+      # two reasons: the organisation does not permit Actions to open pull
+      # requests, so the release PR is never created; and a release it
+      # published would start no further workflow run, leaving build.yml's
+      # release trigger inert and the image without its release tag.
       - uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
