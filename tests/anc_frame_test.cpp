@@ -211,30 +211,41 @@ int main()
         }
     }
 
-    // The timecode survives as BCD, one field per word — this is the property the
-    // probe's UDW dump is read against.
+    // The ST 12M-2 word layout, which is what a conformant decoder reads: one
+    // nibble per word in the high half of the byte, timecode digits on the even
+    // words and binary groups on the odd ones.
     {
         auto const parsed = roundTrip(13, 45, 7, 22);
         auto const& udw = parsed.elements.front().udw;
-        check_eq(udw[0], 0x13, "hours BCD");
-        check_eq(udw[1], 0x45, "minutes BCD");
-        check_eq(udw[2], 0x07, "seconds BCD");
-        check_eq(udw[3], 0x22, "frames BCD");
-        for (std::size_t i = 4; i < udw.size(); ++i) check_eq(udw[i], 0, "reserved UDW " + std::to_string(i));
+        check_eq(udw[0], 0x20, "frame units");
+        check_eq(udw[2], 0x20, "frame tens");
+        check_eq(udw[4], 0x70, "second units");
+        check_eq(udw[6], 0x00, "second tens");
+        check_eq(udw[8], 0x50, "minute units");
+        check_eq(udw[10], 0x40, "minute tens");
+        check_eq(udw[12], 0x30, "hour units");
+        check_eq(udw[14], 0x10, "hour tens");
+        // The binary groups this source has nothing to put in.
+        for (std::size_t i = 1; i < udw.size(); i += 2)
+            check_eq(udw[i], 0, "binary group " + std::to_string(i));
     }
 
-    // Boundaries: midnight and the last representable second, where a BCD or
-    // modulo slip would show up.
+    // Boundaries: midnight and the last representable second, where a nibble or
+    // masking slip would show up.
     {
         auto const zero = roundTrip(0, 0, 0, 0).elements.front().udw;
-        check_eq(zero[0], 0x00, "midnight hours");
-        check_eq(zero[3], 0x00, "midnight frames");
+        for (std::size_t i = 0; i < zero.size(); ++i)
+            check_eq(zero[i], 0, "midnight word " + std::to_string(i));
 
         auto const last = roundTrip(23, 59, 59, 29).elements.front().udw;
-        check_eq(last[0], 0x23, "23h BCD");
-        check_eq(last[1], 0x59, "59m BCD");
-        check_eq(last[2], 0x59, "59s BCD");
-        check_eq(last[3], 0x29, "29f BCD");
+        check_eq(last[0], 0x90, "29f units");
+        check_eq(last[2], 0x20, "29f tens");
+        check_eq(last[4], 0x90, "59s units");
+        check_eq(last[6], 0x50, "59s tens");
+        check_eq(last[8], 0x90, "59m units");
+        check_eq(last[10], 0x50, "59m tens");
+        check_eq(last[12], 0x30, "23h units");
+        check_eq(last[14], 0x20, "23h tens");
     }
 
     // Line number is 11 bits; the top of that range must not bleed into the C bit
@@ -313,10 +324,10 @@ int main()
                 {
                     check_eq(a.udw[i], b.udw[i], "UDW " + std::to_string(i) + " agrees (" + tag + ")");
                 }
-                // And the decode the UI will actually display.
+                // And the decode a conformant ATC reader will display.
                 char want[16];
                 std::snprintf(want, sizeof(want), "%02u:%02u:%02u:%02u", c.h, c.m, c.s, c.f);
-                check(anc::atc_timecode_bcd(a) == std::string{want},
+                check(anc::atc_timecode(a) == std::string{want},
                     "timecode decodes to " + std::string{want});
             }
         }

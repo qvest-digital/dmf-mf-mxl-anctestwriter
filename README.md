@@ -25,21 +25,27 @@ MXL stores ancillary data as RFC 8331 **from the Length field on**; libmxl's
 stored. So a grain is a 6-byte header followed by ANC packet data. `src/anc_frame.h`
 documents the exact word layout.
 
-### The payload is BCD, not ST 12M-2
+### The payload is ST 12M-2
 
-The user data words carry the time as BCD, one field per word:
+The user data words carry the 64-bit linear timecode payload the way ST 12M-2
+defines it: one nibble per word, in the high half of each word's data byte, with
+the timecode digits on the even words and the binary groups, unused here, on the
+odd ones.
 
 ```
-UDW[0] = hours   UDW[1] = minutes   UDW[2] = seconds   UDW[3] = frames
-UDW[4..15] = 0
+UDW[0] frame units    UDW[2] frame tens     UDW[4] second units  UDW[6] second tens
+UDW[8] minute units   UDW[10] minute tens   UDW[12] hour units   UDW[14] hour tens
+UDW[odd] = 0          (binary groups)
 ```
 
-That is deliberately **not** the ST 12M-2 bit layout, which packs a 64-bit
-timecode word with DBB1/DBB2 and binary groups across all sixteen words. Nothing
-in this ecosystem decodes ATC user data — the probe prints the words raw — so a
-layout readable straight off that dump is worth more than an unverifiable
-imitation. **Do not point a conformant ATC decoder at this and expect it to read
-the time.** If that day comes, replace `anc::build_atc_udw` and keep the framing.
+Each tens digit is masked to the width ST 12M-2 gives it, because the spare bits
+are flags. They are left clear: the drop-frame flag would be a claim about how
+this counts, and it counts every frame.
+
+This was BCD in the first four words until the multiviewer's data preview began
+reading these words as a time. A BCD payload decodes to an in-range time under an
+ST 12M-2 reader, so it showed a plausible wrong timecode with nothing to say it
+was wrong.
 
 The 10-bit words do carry correct SMPTE 291 parity (b8 even over b0..b7, b9 its
 inverse) and a correct checksum, so a reader that checks them sees a valid packet.
