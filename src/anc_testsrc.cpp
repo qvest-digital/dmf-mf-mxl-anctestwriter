@@ -31,18 +31,16 @@
 //
 // TIMECODE PAYLOAD. The packet is framed as SMPTE ST 12-2 Ancillary Time Code —
 // DID/SDID 0x60/0x60, Data_Count 16 — which is what mxl-data-probe labels it, and
-// the user data words carry the time as BCD, one field per word:
+// the user data words carry the time in the ST 12M-2 layout: the 64-bit linear
+// timecode payload, one nibble per word in the high half of each word's data
+// byte, timecode digits on the even words and binary groups on the odd ones.
 //
-//   UDW[0] = hours    UDW[1] = minutes    UDW[2] = seconds    UDW[3] = frames
-//   UDW[4..15] = 0
-//
-// That is deliberately NOT the ST 12M-2 bit layout, which packs a 64-bit timecode
-// word with DBB1/DBB2 and binary groups across all 16 words. Nothing in this
-// ecosystem decodes ATC user data — the probe prints the words raw — so a layout
-// readable straight off that dump is worth more than an unverifiable imitation of
-// the real thing. Do not point a conformant ATC decoder at this and expect it to
-// read the time; if that day comes, replace anc::build_atc_udw and keep the
-// framing.
+// This used to be BCD in the first four words instead, on the grounds that
+// nothing decoded ATC user data and a layout readable straight off a probe dump
+// beat an unverifiable imitation. Something decodes it now: the multiviewer's
+// data preview reads these words as a time, and a BCD payload lands in range
+// under an ST 12M-2 reader, so it displayed a plausible wrong time with nothing
+// to say it was wrong.
 //
 // The 10-bit words do carry correct SMPTE 291 parity (b8 even over b0..b7, b9 its
 // inverse) and a correct checksum, because those are cheap and a reader that does
@@ -141,7 +139,7 @@ int main()
     auto const line = static_cast<std::uint16_t>(std::max(env_int("MXL_ANC_LINE", 9), 0));
     auto const label = env_or("MXL_LABEL", "MXL ANC Test Timecode");
     auto const description = env_or("MXL_DESCRIPTION",
-        "SMPTE ST 12-2 framed ancillary timecode, BCD payload");
+        "SMPTE ST 12-2 framed ancillary timecode");
     // NMOS group hint. A booking sets this so the flow groups with the rest of
     // the media function's outputs in a registry; on its own it is descriptive.
     auto const groupHint = env_or("MXL_GROUP_HINT", "ANC Test Source:Ancillary Data");
@@ -202,7 +200,16 @@ int main()
         auto const hours = static_cast<unsigned>((secs / 3600) % 24);
         auto const minutes = static_cast<unsigned>((secs / 60) % 60);
         auto const seconds = static_cast<unsigned>(secs % 60);
-        auto const frames = static_cast<unsigned>(index % fps);
+        // Frames from the same timestamp as the fields above rather than from
+        // index % fps. The index advances at the flow's rate, which at 30000/1001
+        // is not a whole number of grains per second, so a frame counter taken
+        // from it wraps a millisecond later each second and drifts away from the
+        // seconds field beside it. Taking the sub-second remainder keeps the
+        // whole timecode agreeing with itself and with the wall clock.
+        auto const subSecond = ts % 1'000'000'000ULL;
+        auto const frames = static_cast<unsigned>(
+            subSecond * static_cast<std::uint64_t>(rate.numerator)
+            / (static_cast<std::uint64_t>(rate.denominator) * 1'000'000'000ULL));
 
         auto const udw = anc::build_atc_udw(hours, minutes, seconds, frames);
         auto const frame =

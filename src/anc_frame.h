@@ -38,12 +38,6 @@ namespace anc
         return static_cast<std::uint16_t>((b9 << 9) | (b8 << 8) | value);
     }
 
-    /// Two BCD digits, so 13 becomes 0x13 and reads as "13" in a hex dump.
-    inline std::uint8_t bcd(unsigned value)
-    {
-        return static_cast<std::uint8_t>((((value / 10U) % 10U) << 4) | (value % 10U));
-    }
-
     /// Appends bit fields into a big-endian bit stream, MSB first.
     class WordPacker
     {
@@ -90,16 +84,33 @@ namespace anc
         out.push_back(static_cast<std::uint8_t>(v & 0xffU));
     }
 
-    /// The 16 ATC user data words for one timecode: BCD per field, one field per
-    /// word. Deliberately not the ST 12M-2 bit layout — see anc_testsrc.cpp.
+    /// The 16 ATC user data words for one timecode, in the SMPTE ST 12M-2 layout.
+    ///
+    /// The 64 bit linear timecode payload is carried one nibble per word, in the
+    /// high half of each word's data byte. The nibbles alternate: the even ones
+    /// hold the timecode digits, the odd ones the binary groups, which are left
+    /// zero here because this source has nothing to put in them.
+    ///
+    /// The tens digits are narrower than a nibble because ST 12M-2 spends the
+    /// spare bits on flags -- two for frames, three for seconds and minutes, two
+    /// for hours -- so each is masked to the width the field actually has. The
+    /// flag bits are left clear: the drop-frame flag in particular would be a
+    /// claim about how this counts, and it counts every frame.
     inline std::array<std::uint8_t, kAtcDataCount> build_atc_udw(unsigned hours,
         unsigned minutes, unsigned seconds, unsigned frames)
     {
         std::array<std::uint8_t, kAtcDataCount> udw{};
-        udw[0] = bcd(hours);
-        udw[1] = bcd(minutes);
-        udw[2] = bcd(seconds);
-        udw[3] = bcd(frames);
+        auto const nibble = [&udw](std::size_t index, unsigned value)
+        { udw[index] = static_cast<std::uint8_t>((value & 0x0fU) << 4); };
+
+        nibble(0, frames % 10U);
+        nibble(2, (frames / 10U) & 0x03U);
+        nibble(4, seconds % 10U);
+        nibble(6, (seconds / 10U) & 0x07U);
+        nibble(8, minutes % 10U);
+        nibble(10, (minutes / 10U) & 0x07U);
+        nibble(12, hours % 10U);
+        nibble(14, (hours / 10U) & 0x03U);
         return udw;
     }
 
@@ -309,16 +320,27 @@ namespace anc
         return "";
     }
 
-    /// The timecode this repo's anc-testsrc writes: BCD per field in the first
-    /// four user data words. Empty for anything else, including a real ST 12M-2
-    /// ATC packet, whose words mean something different — see anc_testsrc.cpp.
-    inline std::string atc_timecode_bcd(AncElement const& e)
+    /// The timecode an ST 12M-2 ATC packet carries, or empty when the packet is
+    /// not one or does not decode.
+    ///
+    /// The inverse of build_atc_udw: one nibble per word from the high half of
+    /// each data byte, taking the even ones and skipping the binary groups, with
+    /// each tens digit masked to the width ST 12M-2 gives it.
+    inline std::string atc_timecode(AncElement const& e)
     {
-        if (e.did != kAtcDid || e.sdid != kAtcSdid || e.udw.size() < 4) return {};
-        auto twoDigit = [](std::uint8_t v) { return ((v >> 4) & 0x0fU) * 10U + (v & 0x0fU); };
+        if (e.did != kAtcDid || e.sdid != kAtcSdid || e.udw.size() < kAtcDataCount) return {};
+        auto nibble = [&e](std::size_t i) { return (e.udw[i] >> 4) & 0x0fU; };
+
+        unsigned const frames = nibble(0) + (nibble(2) & 0x03U) * 10U;
+        unsigned const seconds = nibble(4) + (nibble(6) & 0x07U) * 10U;
+        unsigned const minutes = nibble(8) + (nibble(10) & 0x07U) * 10U;
+        unsigned const hours = nibble(12) + (nibble(14) & 0x03U) * 10U;
+
+        // A misread shows as no timecode rather than a plausible wrong one.
+        if (frames > 59U || seconds > 59U || minutes > 59U || hours > 23U) return {};
+
         char buf[16];
-        std::snprintf(buf, sizeof(buf), "%02u:%02u:%02u:%02u", twoDigit(e.udw[0]),
-            twoDigit(e.udw[1]), twoDigit(e.udw[2]), twoDigit(e.udw[3]));
+        std::snprintf(buf, sizeof(buf), "%02u:%02u:%02u:%02u", hours, minutes, seconds, frames);
         return std::string{buf};
     }
 }  // namespace anc
