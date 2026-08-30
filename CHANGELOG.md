@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.2](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2026-08-30)
+
+
+### Bug Fixes
+
+* write the timecode in the ST 12M-2 layout ([#3](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/issues/3)) ([7e15c70](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/commit/7e15c70e6342dd74f17f984a605d78779fb72d0f))
+
 ## [1.0.0-rc.1](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2026-08-27)
 
 
