@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.4](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.3...v1.0.0-rc.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* start ANC user data words right after Data_Count ([#7](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/issues/7)) ([6675320](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/commit/667532016777e4042ce573b1094c7c5466a82520))
+
 ## [1.0.0-rc.3](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2026-10-22)
 
 
