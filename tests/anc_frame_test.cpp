@@ -4,12 +4,13 @@
 // time instead of the demo going quietly wrong.
 //
 // The parser below is transcribed from mxl/tools/mxl-data-probe/main.cpp
-// (Apache-2.0, Contributors to the Media eXchange Layer project) with only the
-// mechanical changes needed to drop its fmt/CLI dependencies. It is deliberately
+// (Apache-2.0, Contributors to the Media eXchange Layer project) as of upstream
+// commit c2661a9, "mxl-data-probe: Do not skip first 2 bits of UDW", with only
+// the mechanical changes needed to drop its fmt/CLI dependencies. It is deliberately
 // a copy: a paraphrase would test my understanding of the probe rather than the
 // probe itself.
 //
-// No test framework — the compositor image has none, and one assert helper is
+// No test framework -- the compositor image has none, and one assert helper is
 // cheaper than adding Catch2 to a build that ships to a cluster.
 
 #include <cstdint>
@@ -59,10 +60,10 @@ namespace probe
     class UdwUnpacker
     {
     public:
-        constexpr explicit UdwUnpacker(BigEndianWordReader& reader)
+        constexpr UdwUnpacker(BigEndianWordReader& reader, std::uint16_t initialBits, std::uint32_t initialBitCount)
             : _reader{&reader}
-            , _accumulatedBits{0}
-            , _bitCount{0}
+            , _accumulatedBits{initialBits}
+            , _bitCount{initialBitCount}
         {}
 
         constexpr std::uint16_t read()
@@ -142,7 +143,7 @@ namespace probe
             element.dataCount = static_cast<std::uint8_t>((word3 >> 2U) & Lower8Bits);
             element.udw.reserve(element.dataCount);
 
-            auto unpacker = UdwUnpacker{reader};
+            auto unpacker = UdwUnpacker{reader, static_cast<std::uint16_t>(word3 & 0x0003U), 2U};
             for (auto word = std::uint8_t{0}; word < element.dataCount; ++word)
             {
                 element.udw.push_back(static_cast<std::uint8_t>(unpacker.read() & Lower8Bits));
@@ -264,12 +265,44 @@ int main()
         auto const declared =
             static_cast<std::size_t>((frame[0] << 8) | frame[1]) + anc::kRfc8331HeaderBytes;
         check_eq(declared, frame.size(), "Length + header == frame size");
+        // RFC 8331 word_align: the packet ends on a 32-bit boundary.
+        check_eq((frame.size() - anc::kRfc8331HeaderBytes) % 4, 0, "packet is 32-bit aligned");
         // One ATC packet has to fit a data grain with room to spare.
         check(frame.size() <= 4096, "frame fits a 4096-byte grain");
     }
 
+    // The RFC 8331 bit positions, read straight off the bytes rather than through
+    // a parser: DID, SDID and Data_Count at bits 32, 42 and 52 of the packet,
+    // the first user data word at bit 62 with no gap after Data_Count, and the
+    // checksum right after the last one.
+    {
+        auto const udw = anc::build_atc_udw(13, 45, 7, 22);
+        auto const frame =
+            anc::build_anc_frame(9, anc::kAtcDid, anc::kAtcSdid, udw.data(), anc::kAtcDataCount);
+        auto const field = [&frame](std::size_t bit, unsigned width)
+        {
+            std::uint32_t v = 0;
+            for (unsigned i = 0; i < width; ++i)
+            {
+                auto const at = anc::kRfc8331HeaderBytes * 8 + bit + i;
+                v = (v << 1) | ((frame[at / 8] >> (7 - at % 8)) & 1U);
+            }
+            return v;
+        };
+        check_eq(field(32, 10), anc::anc_word(anc::kAtcDid), "DID at bit 32");
+        check_eq(field(42, 10), anc::anc_word(anc::kAtcSdid), "SDID at bit 42");
+        check_eq(field(52, 10), anc::anc_word(anc::kAtcDataCount), "Data_Count at bit 52");
+        for (std::size_t i = 0; i < anc::kAtcDataCount; ++i)
+            check_eq(field(62 + 10 * i, 10), anc::anc_word(udw[i]), "UDW " + std::to_string(i) + " position");
+        std::uint32_t sum = 0;
+        for (std::size_t i = 0; i < 3 + anc::kAtcDataCount; ++i) sum += field(32 + 10 * i, 10) & 0x1ffU;
+        sum &= 0x1ffU;
+        check_eq(field(62 + 10 * anc::kAtcDataCount, 10), sum | (((sum >> 8) & 1U) ? 0U : 0x200U),
+            "checksum after the last UDW");
+    }
+
     // SMPTE 291 parity: b8 makes b0..b8 even, and b9 is b8 inverted. Note that
-    // this does NOT make b0..b9 uniformly odd or even — the pair alternates — so
+    // this does NOT make b0..b9 uniformly odd or even -- the pair alternates -- so
     // the invariant has to be stated over b0..b8.
     {
         for (unsigned v = 0; v < 256; ++v)
@@ -283,7 +316,7 @@ int main()
         }
     }
 
-    // anc_frame.h's own parser — the one the ANC preview endpoint serves from —
+    // anc_frame.h's own parser -- the one the ANC preview endpoint serves from --
     // must agree with the probe's on every field. Two parsers that drift apart
     // would mean the UI shows something the reference tool does not.
     {
