@@ -7,7 +7,7 @@
 # links against a different ABI than it runs on.
 
 # renovate: datasource=docker depName=ghcr.io/qvest-digital/go-mxl-builder
-ARG GO_MXL_TAG=1.0.0-rc.9
+ARG GO_MXL_TAG=1.1.0-rc.7
 
 FROM ghcr.io/qvest-digital/go-mxl-builder:${GO_MXL_TAG} AS build
 
