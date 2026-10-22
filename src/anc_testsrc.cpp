@@ -15,19 +15,19 @@
 //   word 0    Length              bytes of packet data after this header
 //   word 1    ANC_Count << 8      F and reserved are zero
 //   word 2    reserved
-//   word 3    C(1) Line_Number(11) Horizontal_Offset high 4
-//   word 4    Horizontal_Offset low 8, S(1), StreamNum(7)
-//   word 5-6  DID(10) SDID(10) Data_Count(10), then 2 unused bits
-//   word 7+   User_Data_Words, 10 bits each, then the checksum
 //
-// All words are big-endian. UDW start at the top of word 7 rather than in the two
-// bits left over in word 6: that is what libmxl's own mxl-data-probe expects (its
-// UdwUnpacker begins accumulating at a fresh word), and matching the reference
-// reader matters more here than the stricter bit-packing reading of RFC 8331 — a
-// test source nothing in the ecosystem can decode is not a test source. The
-// round-trip test in compositor/test/anc_frame_test.cpp holds the framing to that
-// parser, so if libmxl changes it, the build fails rather than the demo going
-// quietly wrong.
+// then each ANC packet as one big-endian bit stream, MSB first:
+//
+//   bit 0     C(1) Line_Number(11) Horizontal_Offset(12) S(1) StreamNum(7)
+//   bit 32    DID(10) SDID(10) Data_Count(10)
+//   bit 62    User_Data_Words, 10 bits each, then Checksum_Word(10)
+//             zero bits up to the next 32-bit boundary (RFC 8331 word_align)
+//
+// The user data words follow Data_Count directly, as RFC 8331 packs them and as
+// libmxl's mxl-data-probe reads them since upstream commit c2661a9. The
+// round-trip test in tests/anc_frame_test.cpp holds the framing to that parser,
+// so if libmxl changes it, the build fails rather than the demo going quietly
+// wrong.
 //
 // TIMECODE PAYLOAD. The packet is framed as SMPTE ST 12-2 Ancillary Time Code —
 // DID/SDID 0x60/0x60, Data_Count 16 — which is what mxl-data-probe labels it, and

@@ -1,7 +1,7 @@
 // RFC 8331 ancillary-data framing, as MXL stores it in a `video/smpte291` grain.
 //
 // Header-only and free of any libmxl dependency, so the framing can be tested on
-// its own — see compositor/test/anc_frame_test.cpp, which round-trips these
+// its own -- see tests/anc_frame_test.cpp, which round-trips these
 // frames through the parser from libmxl's mxl-data-probe. The writer that puts
 // them into a flow is anc_testsrc.cpp; the layout is documented there.
 
@@ -114,7 +114,7 @@ namespace anc
         return udw;
     }
 
-    /// One RFC 8331 frame — as MXL stores it, from the Length field on — carrying
+    /// One RFC 8331 frame -- as MXL stores it, from the Length field on -- carrying
     /// a single ANC packet.
     inline std::vector<std::uint8_t> build_anc_frame(std::uint16_t lineNumber, std::uint8_t did,
         std::uint8_t sdid, std::uint8_t const* udw, std::uint8_t dataCount)
@@ -140,22 +140,23 @@ namespace anc
         emit(did);
         emit(sdid);
         emit(dataCount);
-        // DID, SDID and Data_Count are 30 bits; pad to 32 so the user data words
-        // begin at the top of the next 16-bit word. libmxl's mxl-data-probe reads
-        // them that way — its UdwUnpacker starts on a fresh word after the four
-        // packet-header words — so packing UDW into the two leftover bits here
-        // would shift every value by 2 bits and the probe would show garbage.
-        packer.push_bits(0, 2);
+        // The user data words follow Data_Count with no gap, starting in the two
+        // bits left over after the 30 bits of DID, SDID and Data_Count. That is
+        // RFC 8331's packing and where libmxl's mxl-data-probe reads them since
+        // upstream commit c2661a9.
         for (std::uint8_t i = 0; i < dataCount; ++i) emit(udw[i]);
 
         // Checksum: low 9 bits of the sum, b9 its inverse. Not b8-parity like the
-        // data words — ST 291 defines it this way.
+        // data words -- ST 291 defines it this way.
         auto const sum9 = static_cast<std::uint16_t>(checksum & 0x01ffU);
         auto const csB9 = static_cast<std::uint16_t>(((sum9 >> 8) & 1U) ? 0U : 1U);
         packer.push(static_cast<std::uint16_t>((csB9 << 9) | sum9));
 
         auto const words = packer.finish();
         packet.insert(packet.end(), words.begin(), words.end());
+        // RFC 8331 word_align: the packet ends on a 32-bit boundary, and Length
+        // counts the padding. The MXL project's gst-mxl-rs reader requires it.
+        if (packet.size() % 4 != 0) push_be16(packet, 0);
 
         std::vector<std::uint8_t> frame;
         push_be16(frame, static_cast<std::uint16_t>(packet.size()));  // Length
@@ -165,11 +166,10 @@ namespace anc
         return frame;
     }
 
-    // ── Reading back ────────────────────────────────────────────────────────
+    // Reading back
     // The mirror image of the builder, laid out to match libmxl's mxl-data-probe
-    // word for word — including the alignment rules the builder documents. Used
-    // by the ANC preview endpoint, and checked against the probe's own parser in
-    // the round-trip test, so the two cannot drift apart silently.
+    // word for word. The round-trip test checks it against the probe's own
+    // parser, so the two cannot drift apart silently.
     //
     // Every read is bounds-checked: this parses whatever is sitting in a shared
     // ring buffer, which a half-written or foreign producer can leave malformed.
@@ -208,7 +208,7 @@ namespace anc
 
         std::size_t wordOffset() const { return _offset / 2; }
 
-        /// Ten-bit words, MSB first, starting from the current 16-bit boundary.
+        /// Ten-bit words, MSB first: any carried bits, then whole 16-bit words.
         bool read10(std::uint16_t& out)
         {
             while (_bitCount < 10)
@@ -224,12 +224,13 @@ namespace anc
             return true;
         }
 
-        /// Drops any partial 10-bit accumulation, so the next read10 starts on a
-        /// fresh 16-bit word — matching where the probe begins each element's UDW.
-        void realign()
+        /// Replaces any partial 10-bit accumulation with the low `count` bits of
+        /// `bits`, so the next read10 starts with them. An element's UDW begin in
+        /// the two bits Data_Count leaves in its word, as the probe reads them.
+        void carry(std::uint16_t bits, std::uint32_t count)
         {
-            _acc = 0;
-            _bitCount = 0;
+            _acc = bits & ((1U << count) - 1U);
+            _bitCount = count;
         }
 
     private:
@@ -273,8 +274,8 @@ namespace anc
             e.sdid = static_cast<std::uint8_t>(((w2 & 0x000fU) << 4) | ((w3 >> 12) & 0x000fU));
             e.dataCount = static_cast<std::uint8_t>((w3 >> 2) & 0x00ffU);
 
-            // UDW start on the next whole word, not in w3's leftover two bits.
-            r.realign();
+            // UDW start in w3's low two bits, right after Data_Count.
+            r.carry(w3, 2);
             e.udw.reserve(e.dataCount);
             for (std::uint8_t n = 0; n < e.dataCount; ++n)
             {
