@@ -55,7 +55,7 @@ inverse) and a correct checksum, so a reader that checks them sees a valid packe
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MXL_DOMAIN` | `/run/mxl/domain` | MXL domain root |
-| `MXL_FLOW_ID` | `a0d20000-0000-0000-0000-000000000001` | the flow to write |
+| `MXL_FLOW_ID` | `a0d20000-0000-4000-8000-000000000001` | the flow to write |
 | `MXL_GRAIN_RATE_NUM` | `30000` | grain rate numerator |
 | `MXL_GRAIN_RATE_DEN` | `1001` | grain rate denominator |
 | `MXL_ANC_LINE` | `9` | VANC line reported in the packet |

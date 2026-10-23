@@ -131,7 +131,7 @@ int main()
     std::signal(SIGTERM, on_signal);
 
     auto const domain = env_or("MXL_DOMAIN", "/run/mxl/domain");
-    auto const flowId = env_or("MXL_FLOW_ID", "a0d20000-0000-0000-0000-000000000001");
+    auto const flowId = env_or("MXL_FLOW_ID", "a0d20000-0000-4000-8000-000000000001");
     auto const rateNum = std::max(env_int("MXL_GRAIN_RATE_NUM", 30000), 1);
     auto const rateDen = std::max(env_int("MXL_GRAIN_RATE_DEN", 1001), 1);
     // VANC line 9 is where ATC usually sits on HD; nothing here depends on it,
