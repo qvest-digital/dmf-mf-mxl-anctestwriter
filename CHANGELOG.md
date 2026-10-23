@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.5](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.4...v1.0.0-rc.5) (2026-10-23)
+
+
+### Bug Fixes
+
+* default MXL_FLOW_ID to an RFC 9562 UUID ([#9](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/issues/9)) ([94be847](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/commit/94be847d588fd32680c0be4e0f569d00e9ca19c1))
+
 ## [1.0.0-rc.4](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.3...v1.0.0-rc.4) (2026-10-22)
 
 
