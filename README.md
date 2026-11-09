@@ -75,7 +75,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 `libmxl` comes from the `go-mxl-builder` / `go-mxl-runtime` images; the headers
-are vendored under `vendor/`. The two halves are pinned to one `GO_MXL_TAG` in the
+are read from `/opt/libmxl/include` in the builder (`-DMXL_INCLUDE_DIR=` points
+elsewhere). The two halves are pinned to one `GO_MXL_TAG` in the
 Dockerfile and must move together — the builder's headers and the runtime's
 `libmxl.so` are released as a pair.
 

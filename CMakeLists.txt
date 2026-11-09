@@ -6,11 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # No GStreamer and no pkg-config: this writes ancillary data straight through
-# libmxl, so the only dependency is libmxl itself. The runtime .so comes from the
-# go-mxl base images; the headers are vendored under vendor/ the same way.
+# libmxl, so the only dependency is libmxl itself. The headers and the runtime
+# .so come from the go-mxl base images, which install libmxl under /opt/libmxl.
+set(MXL_INCLUDE_DIR "/opt/libmxl/include" CACHE PATH "Directory holding mxl/mxl.h")
 add_executable(mxl-anc-testsrc src/anc_testsrc.cpp)
 target_compile_options(mxl-anc-testsrc PRIVATE -Wall -Wextra -Wpedantic)
-target_include_directories(mxl-anc-testsrc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+target_include_directories(mxl-anc-testsrc PRIVATE ${MXL_INCLUDE_DIR})
 target_link_libraries(mxl-anc-testsrc PRIVATE mxl pthread)
 
 install(TARGETS mxl-anc-testsrc RUNTIME DESTINATION bin)
