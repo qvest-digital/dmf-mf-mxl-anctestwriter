@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.6](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.5...v1.0.0-rc.6) (2026-11-13)
+
+
+### Dependencies
+
+* **go-mxl:** update go-mxl to v1.1.0-rc.15 ([#12](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/issues/12)) ([81bc52f](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/commit/81bc52feaf987d581b47cf883accdba2eaecf3f7))
+
 ## [1.0.0-rc.5](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.4...v1.0.0-rc.5) (2026-11-09)
 
 
