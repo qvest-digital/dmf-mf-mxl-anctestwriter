@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0-rc.7](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.6...v1.0.0-rc.7) (2026-11-17)
+
+
+### Continuous Integration
+
+* generate an SBOM with Trivy and gate on fixable CVEs ([#14](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/issues/14)) ([54bb0d4](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/commit/54bb0d4296a3c1cd8a347ebff900c17c8b70e532))
+
 ## [1.0.0-rc.6](https://github.com/qvest-digital/dmf-mf-mxl-anctestwriter/compare/v1.0.0-rc.5...v1.0.0-rc.6) (2026-11-13)
 
 
